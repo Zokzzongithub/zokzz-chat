@@ -237,6 +237,13 @@ form button:hover {
 
 .sidebar-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sidebar-brand {
+  display: flex;
   flex-direction: column;
   gap: 0.25rem;
 }
@@ -363,6 +370,36 @@ form button:hover {
   cursor: default;
   box-shadow: none;
   transform: none;
+}
+
+.icon-btn {
+  border: none;
+  background: rgba(90, 169, 248, 0.16);
+  color: var(--primary-dark);
+  border-radius: 999px;
+  width: 40px;
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.icon-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(90, 169, 248, 0.25);
+}
+
+.icon-btn:focus-visible {
+  outline: 3px solid rgba(90, 169, 248, 0.35);
+  outline-offset: 2px;
+}
+
+body[data-theme="dark"] .icon-btn:hover {
+  background: rgba(37, 99, 235, 0.36);
+  box-shadow: 0 12px 26px rgba(59, 130, 246, 0.45);
 }
 
 .section-heading {
@@ -514,9 +551,26 @@ form button:hover {
   opacity: 0.7;
 }
 
+.message-bubble img {
+  max-width: min(320px, 100%);
+  border-radius: 16px;
+  display: block;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+}
+
+.message-text {
+  line-height: 1.45;
+  margin-top: 0.35rem;
+  white-space: pre-line;
+}
+
+.message-bubble img + .message-text {
+  margin-top: 0.6rem;
+}
+
 .chat-form {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
   padding: 1.4rem 2.25rem;
   background: rgba(255, 255, 255, 0.9);
@@ -524,21 +578,42 @@ form button:hover {
   backdrop-filter: blur(8px);
 }
 
+.chat-input-group {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: 24px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  padding: 0.4rem 0.6rem 0.4rem 0.4rem;
+  transition: border 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.chat-input-group:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(90, 169, 248, 0.18);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.chat-input-group .icon-btn {
+  width: 42px;
+  height: 42px;
+}
+
 .chat-form textarea {
   resize: none;
-  border-radius: 20px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  padding: 0.85rem 1.1rem;
+  border: none;
+  border-radius: 18px;
+  padding: 0.65rem 0.9rem;
   font-size: 0.98rem;
   font-family: inherit;
-  background: rgba(255, 255, 255, 0.65);
-  transition: border 0.15s ease, box-shadow 0.15s ease;
+  background: transparent;
+  color: inherit;
 }
 
 .chat-form textarea:focus {
   outline: none;
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(90, 169, 248, 0.18);
 }
 
 .chat-form button {
@@ -559,13 +634,122 @@ form button:hover {
 }
 
 .chat-form.busy button,
-.chat-form.busy textarea {
+.chat-form.busy textarea,
+.chat-form.busy .icon-btn {
   opacity: 0.6;
   pointer-events: none;
 }
 
+.chat-form.drop-target .chat-input-group {
+  border-color: var(--primary-dark);
+  box-shadow: 0 0 0 3px rgba(47, 116, 192, 0.35);
+  background: rgba(90, 169, 248, 0.18);
+}
+
 .hidden {
   display: none !important;
+}
+
+body[data-theme="dark"] {
+  --background: #0f172a;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --primary: #60a5fa;
+  --primary-dark: #2563eb;
+  color-scheme: dark;
+}
+
+body.app-body[data-theme="dark"] {
+  background: radial-gradient(circle at top, rgba(37, 99, 235, 0.25), transparent 55%),
+    radial-gradient(circle at bottom, rgba(15, 118, 110, 0.2), transparent 45%),
+    #020617;
+}
+
+body[data-theme="dark"] .app-sidebar {
+  background: rgba(15, 23, 42, 0.85);
+  border-right: 1px solid rgba(148, 163, 184, 0.16);
+  box-shadow: inset -1px 0 0 rgba(30, 41, 59, 0.55);
+}
+
+body[data-theme="dark"] .icon-btn {
+  background: rgba(37, 99, 235, 0.28);
+  color: #f1f5f9;
+}
+
+body[data-theme="dark"] .sidebar-item {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(37, 99, 235, 0.15));
+  border: 1px solid rgba(148, 163, 184, 0.1);
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.45);
+}
+
+body[data-theme="dark"] .empty-state {
+  background: rgba(15, 23, 42, 0.55);
+  border-color: rgba(148, 163, 184, 0.16);
+}
+
+body[data-theme="dark"] .app-main {
+  background: linear-gradient(120deg, rgba(37, 99, 235, 0.18), rgba(2, 6, 23, 0.92));
+}
+
+body[data-theme="dark"] .chat-header {
+  background: rgba(15, 23, 42, 0.85);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+body[data-theme="dark"] .chat-placeholder {
+  color: rgba(226, 232, 240, 0.72);
+}
+
+body[data-theme="dark"] .placeholder-inner {
+  background: rgba(15, 23, 42, 0.72);
+  box-shadow: 0 45px 90px rgba(2, 6, 23, 0.65);
+}
+
+body[data-theme="dark"] .chat-messages::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.4);
+}
+
+body[data-theme="dark"] .chat-form {
+  background: rgba(15, 23, 42, 0.9);
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+body[data-theme="dark"] .chat-input-group {
+  background: rgba(15, 23, 42, 0.65);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+body[data-theme="dark"] .chat-input-group:focus-within {
+  background: rgba(15, 23, 42, 0.85);
+  border-color: rgba(96, 165, 250, 0.65);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.28);
+}
+
+body[data-theme="dark"] .chat-form.drop-target .chat-input-group {
+  background: rgba(37, 99, 235, 0.24);
+}
+
+body[data-theme="dark"] .message-bubble {
+  background: rgba(15, 23, 42, 0.88);
+  color: var(--text);
+  box-shadow: 0 25px 45px rgba(2, 6, 23, 0.55);
+}
+
+body[data-theme="dark"] .message-bubble.self {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.95), rgba(56, 189, 248, 0.78));
+}
+
+body[data-theme="dark"] .message-bubble img {
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.6);
+}
+
+body[data-theme="dark"] .message-meta {
+  color: rgba(148, 163, 184, 0.75);
+  opacity: 0.75;
+}
+
+body[data-theme="dark"] .message-bubble.self .message-meta {
+  color: rgba(226, 232, 240, 0.75);
 }
 
 body[data-layout="compact"] .app-shell {

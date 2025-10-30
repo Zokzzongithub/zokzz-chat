@@ -3,6 +3,73 @@ const userService = require('./userService');
 
 const CONVERSATIONS_COLLECTION = 'conversations';
 const USER_CONVERSATIONS_COLLECTION = 'userConversations';
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+const MESSAGE_ENCODING = 'utf-8';
+
+function createError(message, code) {
+  const error = new Error(message);
+  if (code) {
+    error.code = code;
+  }
+  return error;
+}
+
+function parseImagePayload(dataUrl, fallbackMimeType) {
+  if (typeof dataUrl !== 'string' || !dataUrl.trim()) {
+    throw createError('Image attachment is required.', 'INVALID_IMAGE');
+  }
+
+  const trimmed = dataUrl.trim();
+  const dataUrlMatch = /^data:([^;]+);base64,(.+)$/i.exec(trimmed);
+
+  let mimeType = fallbackMimeType || '';
+  let base64Payload;
+
+  if (dataUrlMatch) {
+    mimeType = dataUrlMatch[1];
+    base64Payload = dataUrlMatch[2];
+  } else if (trimmed.startsWith('data:')) {
+    const markerIndex = trimmed.indexOf(';base64,');
+    if (markerIndex === -1) {
+      throw createError('Invalid image encoding.', 'INVALID_IMAGE');
+    }
+    mimeType = trimmed.substring('data:'.length, markerIndex);
+    base64Payload = trimmed.substring(markerIndex + ';base64,'.length);
+  } else {
+    base64Payload = trimmed;
+  }
+
+  if (!mimeType) {
+    throw createError('Only image attachments are supported.', 'INVALID_IMAGE');
+  }
+
+  if (!mimeType.startsWith('image/')) {
+    throw createError('Only image attachments are supported.', 'INVALID_IMAGE');
+  }
+
+  const sanitizedBase64 = base64Payload.replace(/\s/g, '');
+
+  let buffer;
+  try {
+    buffer = Buffer.from(sanitizedBase64, 'base64');
+  } catch (error) {
+    throw createError('Invalid image encoding.', 'INVALID_IMAGE');
+  }
+
+  if (!buffer || buffer.length === 0) {
+    throw createError('Invalid image encoding.', 'INVALID_IMAGE');
+  }
+
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    throw createError('Image must be smaller than 2MB.', 'IMAGE_TOO_LARGE');
+  }
+
+  return {
+    data: `data:${mimeType};base64,${sanitizedBase64}`,
+    mimeType,
+    size: buffer.length,
+  };
+}
 
 function getConversationId(userA, userB) {
   return [userA, userB].sort().join('__');
@@ -92,33 +159,67 @@ async function fetchMessages(conversationId, since) {
   }
 
   return Object.entries(value)
-    .map(([id, data]) => ({ id, ...data }))
+    .map(([id, data]) => {
+      const type = data?.type || 'text';
+      const message = {
+        id,
+        ...data,
+        type,
+      };
+
+      if (type !== 'image') {
+        delete message.image;
+      }
+
+      return message;
+    })
     .sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
 }
 
-async function appendMessage(conversationId, senderId, body) {
-  const trimmed = body.trim();
-  if (!trimmed) {
-    throw new Error('Message body required.');
-  }
-
+async function appendMessage(conversationId, senderId, payload) {
+  const messagePayload = payload && typeof payload === 'object' ? payload : {};
+  const type = messagePayload.type || 'text';
   const now = new Date().toISOString();
   const messageRef = conversationRef(conversationId).child('messages').push();
 
-  await messageRef.set({
+  const record = {
     senderId,
-    body: trimmed,
+    type,
     createdAt: now,
-  });
+    encoding: MESSAGE_ENCODING,
+  };
+
+  if (type === 'image') {
+    const image = parseImagePayload(messagePayload.imageData, messagePayload.imageMimeType);
+    record.image = image;
+
+    if (typeof messagePayload.body === 'string' && messagePayload.body.trim()) {
+      record.body = messagePayload.body.trim();
+    }
+  } else if (type === 'text') {
+    const body = typeof messagePayload.body === 'string' ? messagePayload.body.trim() : '';
+    if (!body) {
+      throw createError('Message body is required.', 'MESSAGE_BODY_REQUIRED');
+    }
+    record.body = body;
+  } else {
+    throw createError('Unsupported message type.', 'UNSUPPORTED_MESSAGE_TYPE');
+  }
+
+  await messageRef.set(record);
+
+  const preview = record.type === 'image'
+    ? '[image]'
+    : (record.body || '').slice(0, 120);
 
   await conversationRef(conversationId).update({
     updatedAt: now,
-    lastMessagePreview: trimmed.slice(0, 120),
+    lastMessagePreview: preview,
     lastMessageSender: senderId,
     lastMessageAt: now,
   });
 
-  return { id: messageRef.key, createdAt: now };
+  return { id: messageRef.key, createdAt: now, type: record.type };
 }
 
 async function getConversation(conversationId) {

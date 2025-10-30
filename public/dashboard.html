@@ -10,8 +10,11 @@
   <div class="app-shell">
     <aside class="app-sidebar">
       <div class="sidebar-header">
-        <h2 class="sidebar-title">Zokzz Chat</h2>
-        <p class="sidebar-user" id="sidebarUser">Loading…</p>
+        <div class="sidebar-brand">
+          <h2 class="sidebar-title">Zokzz Chat</h2>
+          <p class="sidebar-user" id="sidebarUser">Loading…</p>
+        </div>
+        <button id="themeToggle" class="icon-btn" type="button" aria-label="Toggle dark mode">🌙</button>
       </div>
 
       <div class="sidebar-section">
@@ -64,8 +67,12 @@
         <div id="chatMessages" class="chat-messages"></div>
 
         <form id="chatForm" class="chat-form">
-          <textarea id="chatInput" rows="2" placeholder="Type a message…" required></textarea>
+          <div class="chat-input-group">
+            <button type="button" id="chatImageButton" class="icon-btn" aria-label="Send image">🖼️</button>
+            <textarea id="chatInput" rows="2" placeholder="Type a message…" required></textarea>
+          </div>
           <button type="submit">Send</button>
+          <input id="chatImageInput" type="file" accept="image/*" hidden />
         </form>
       </div>
     </section>

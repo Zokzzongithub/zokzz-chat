@@ -12,7 +12,11 @@ if (layoutParam && supportedLayouts.has(layoutParam)) {
   document.body.dataset.layout = layoutParam;
 }
 
+const THEME_STORAGE_KEY = 'zokzz.theme';
+const MAX_IMAGE_BYTES = 2 * 1024 * 1024;
+
 const sidebarUserEl = document.getElementById('sidebarUser');
+const themeToggleButton = document.getElementById('themeToggle');
 const searchInputEl = document.getElementById('friendSearchInput');
 const searchResultsEl = document.getElementById('searchResults');
 const incomingRequestsEl = document.getElementById('incomingRequests');
@@ -27,6 +31,8 @@ const chatFriendEmailEl = document.getElementById('chatFriendEmail');
 const chatMessagesEl = document.getElementById('chatMessages');
 const chatFormEl = document.getElementById('chatForm');
 const chatInputEl = document.getElementById('chatInput');
+const chatImageButton = document.getElementById('chatImageButton');
+const chatImageInput = document.getElementById('chatImageInput');
 const closeChatButton = document.getElementById('closeChat');
 
 const state = {
@@ -44,6 +50,43 @@ const state = {
   latestSearchTerm: '',
 };
 
+function applyThemePreference(theme) {
+  const nextTheme = theme === 'dark' ? 'dark' : 'light';
+  document.body.dataset.theme = nextTheme;
+
+  if (themeToggleButton) {
+    const isDark = nextTheme === 'dark';
+    themeToggleButton.textContent = isDark ? '☀️' : '🌙';
+    themeToggleButton.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
+  }
+}
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem(THEME_STORAGE_KEY);
+  } catch (error) {
+    console.warn('Unable to read theme preference', error);
+    return null;
+  }
+}
+
+function setStoredTheme(theme) {
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+  } catch (error) {
+    console.warn('Unable to persist theme preference', error);
+  }
+}
+
+const initialTheme = getStoredTheme();
+applyThemePreference(initialTheme);
+
+themeToggleButton?.addEventListener('click', () => {
+  const nextTheme = document.body.dataset.theme === 'dark' ? 'light' : 'dark';
+  applyThemePreference(nextTheme);
+  setStoredTheme(nextTheme);
+});
+
 function parseJsonSafe(text) {
   try {
     return JSON.parse(text);
@@ -58,7 +101,7 @@ async function apiRequest(path, { method = 'GET', body, base = apiBase } = {}) {
   const options = { method, headers };
 
   if (body !== undefined) {
-    headers['Content-Type'] = 'application/json';
+    headers['Content-Type'] = 'application/json; charset=UTF-8';
     options.body = JSON.stringify(body);
   }
 
@@ -278,6 +321,12 @@ function clearChatState() {
   state.messageIds = new Set();
   state.lastMessageAt = null;
 
+  setChatBusy(false);
+  toggleDropTarget(false);
+  if (chatImageInput) {
+    chatImageInput.value = '';
+  }
+
   chatWindowEl?.classList.add('hidden');
   chatPlaceholderEl?.classList.remove('hidden');
 }
@@ -289,6 +338,157 @@ function formatTime(isoString) {
   }
 
   return `${date.toLocaleDateString()} ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+}
+
+function setChatBusy(isBusy) {
+  if (!chatFormEl) {
+    return;
+  }
+
+  chatFormEl.classList.toggle('busy', Boolean(isBusy));
+}
+
+function toggleDropTarget(active) {
+  if (!chatFormEl) {
+    return;
+  }
+
+  chatFormEl.classList.toggle('drop-target', Boolean(active));
+}
+
+function eventHasFile(event) {
+  if (!event.dataTransfer) {
+    return false;
+  }
+
+  if (event.dataTransfer.items) {
+    return Array.from(event.dataTransfer.items).some((item) => item.kind === 'file');
+  }
+
+  return event.dataTransfer.files && event.dataTransfer.files.length > 0;
+}
+
+function validateImageFile(file) {
+  if (!file) {
+    return 'No file provided.';
+  }
+
+  if (!file.type.startsWith('image/')) {
+    return 'Only image files are supported.';
+  }
+
+  if (file.size > MAX_IMAGE_BYTES) {
+    return 'Images must be smaller than 2MB.';
+  }
+
+  return null;
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '');
+    reader.onerror = () => reject(new Error('Unable to read file.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function sendImageAttachment(file) {
+  if (!state.activeConversationId) {
+    alert('Select a friend before sending an image.');
+    return;
+  }
+
+  toggleDropTarget(false);
+
+  const validationMessage = validateImageFile(file);
+  if (validationMessage) {
+    alert(validationMessage);
+    return;
+  }
+
+  if (chatFormEl?.classList.contains('busy')) {
+    return;
+  }
+
+  try {
+    setChatBusy(true);
+    const dataUrl = await readFileAsDataUrl(file);
+    await apiRequest(`/chats/${state.activeConversationId}/messages`, {
+      method: 'POST',
+      body: {
+        type: 'image',
+        imageData: dataUrl,
+        imageMimeType: file.type,
+      },
+    });
+    await fetchMessages();
+  } catch (error) {
+    console.error('Failed to send image', error);
+    alert(error.message || 'Could not send image.');
+  } finally {
+    setChatBusy(false);
+  }
+}
+
+function normaliseMessage(message) {
+  if (!message || typeof message !== 'object') {
+    return null;
+  }
+
+  const type = message.type || 'text';
+  const rawImage = message.image && typeof message.image === 'object' ? message.image : null;
+  const imageData = rawImage && typeof rawImage.data === 'string' ? rawImage.data : '';
+  return {
+    ...message,
+    type,
+    body: typeof message.body === 'string' ? message.body : '',
+    image: type === 'image' && imageData
+      ? {
+        data: imageData,
+        mimeType: typeof rawImage.mimeType === 'string' ? rawImage.mimeType : '',
+        size: typeof rawImage.size === 'number' ? rawImage.size : undefined,
+      }
+      : null,
+  };
+}
+
+function handleDragOver(event) {
+  if (!eventHasFile(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  toggleDropTarget(true);
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = 'copy';
+  }
+}
+
+function handleDragLeave(event) {
+  if (!eventHasFile(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  if (chatFormEl && event.relatedTarget && chatFormEl.contains(event.relatedTarget)) {
+    return;
+  }
+  toggleDropTarget(false);
+}
+
+async function handleDrop(event) {
+  if (!eventHasFile(event)) {
+    return;
+  }
+
+  event.preventDefault();
+  toggleDropTarget(false);
+
+  const file = event.dataTransfer?.files?.[0];
+  if (file) {
+    await sendImageAttachment(file);
+  }
 }
 
 function renderMessages() {
@@ -305,9 +505,30 @@ function renderMessages() {
       bubble.classList.add('self');
     }
 
-    const content = document.createElement('div');
-    content.textContent = message.body;
-    bubble.appendChild(content);
+    const messageType = message.type || 'text';
+    if (messageType === 'image' && message.image?.data) {
+      const image = document.createElement('img');
+      image.src = message.image.data;
+      image.alt = message.image?.alt || 'Shared image';
+      bubble.appendChild(image);
+
+      if (typeof message.body === 'string' && message.body.trim()) {
+        const caption = document.createElement('div');
+        caption.className = 'message-text';
+        caption.textContent = message.body;
+        bubble.appendChild(caption);
+      }
+    } else {
+      const content = document.createElement('div');
+      content.className = 'message-text';
+      const messageBody = typeof message.body === 'string' ? message.body : '';
+      if (messageType !== 'text' && !messageBody.trim()) {
+        content.textContent = '[Unsupported message]';
+      } else {
+        content.textContent = messageBody;
+      }
+      bubble.appendChild(content);
+    }
 
     const meta = document.createElement('div');
     meta.className = 'message-meta';
@@ -334,9 +555,14 @@ async function fetchMessages() {
 
     newMessages.forEach((message) => {
       if (!state.messageIds.has(message.id)) {
-        state.messageIds.add(message.id);
-        state.messages.push(message);
-        state.lastMessageAt = message.createdAt;
+        const prepared = normaliseMessage(message);
+        if (!prepared) {
+          return;
+        }
+
+        state.messageIds.add(prepared.id);
+        state.messages.push(prepared);
+        state.lastMessageAt = prepared.createdAt;
         updated = true;
       }
     });
@@ -362,10 +588,10 @@ async function sendMessage(event) {
   }
 
   try {
-    chatFormEl.classList.add('busy');
+    setChatBusy(true);
     await apiRequest(`/chats/${state.activeConversationId}/messages`, {
       method: 'POST',
-      body: { body },
+      body: { type: 'text', body },
     });
     chatInputEl.value = '';
     await fetchMessages();
@@ -373,7 +599,7 @@ async function sendMessage(event) {
     console.error('Failed to send message', error);
     alert('Could not send message. Please try again.');
   } finally {
-    chatFormEl.classList.remove('busy');
+    setChatBusy(false);
   }
 }
 
@@ -400,6 +626,8 @@ async function openConversation(friend) {
 
     chatPlaceholderEl?.classList.add('hidden');
     chatWindowEl?.classList.remove('hidden');
+    toggleDropTarget(false);
+    setChatBusy(false);
 
     await fetchMessages();
 
@@ -522,6 +750,37 @@ function attachEventListeners() {
 
   chatFormEl?.addEventListener('submit', sendMessage);
   closeChatButton?.addEventListener('click', clearChatState);
+
+  chatImageButton?.addEventListener('click', () => {
+    chatImageInput?.click();
+  });
+
+  chatImageInput?.addEventListener('change', async (event) => {
+    const file = event.target.files && event.target.files[0];
+    if (file) {
+      await sendImageAttachment(file);
+    }
+    event.target.value = '';
+  });
+
+  [chatFormEl, chatInputEl, chatMessagesEl].forEach((element) => {
+    if (!element) {
+      return;
+    }
+
+    element.addEventListener('dragenter', handleDragOver);
+    element.addEventListener('dragover', handleDragOver);
+    element.addEventListener('dragleave', handleDragLeave);
+    element.addEventListener('drop', handleDrop);
+  });
+
+  window.addEventListener('dragend', () => toggleDropTarget(false));
+  window.addEventListener('drop', (event) => {
+    if (eventHasFile(event)) {
+      event.preventDefault();
+    }
+    toggleDropTarget(false);
+  });
 }
 
 async function loadProfile() {

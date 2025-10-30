@@ -180,12 +180,42 @@ router.get('/chats/:conversationId/messages', requireAuth, asyncHandler(async (r
 
 router.post('/chats/:conversationId/messages', requireAuth, asyncHandler(async (req, res) => {
   await chatService.ensureParticipant(req.params.conversationId, req.user.sub);
-  const body = typeof req.body?.body === 'string' ? req.body.body : '';
-  if (!body.trim()) {
-    return res.status(400).json({ message: 'Message body is required.' });
+
+  const rawType = typeof req.body?.type === 'string' ? req.body.type.toLowerCase() : 'text';
+  const payload = {
+    type: rawType === 'image' ? 'image' : 'text',
+  };
+
+  if (typeof req.body?.body === 'string') {
+    payload.body = req.body.body;
   }
-  const message = await chatService.appendMessage(req.params.conversationId, req.user.sub, body);
-  res.status(201).json({ message });
+
+  if (typeof req.body?.imageData === 'string') {
+    payload.imageData = req.body.imageData;
+  }
+
+  if (typeof req.body?.imageMimeType === 'string') {
+    payload.imageMimeType = req.body.imageMimeType;
+  }
+
+  try {
+    const message = await chatService.appendMessage(req.params.conversationId, req.user.sub, payload);
+    res.status(201).json({ message });
+  } catch (error) {
+    const clientErrorCodes = new Set([
+      'MESSAGE_BODY_REQUIRED',
+      'INVALID_IMAGE',
+      'IMAGE_TOO_LARGE',
+      'UNSUPPORTED_MESSAGE_TYPE',
+    ]);
+
+    if (clientErrorCodes.has(error.code)) {
+      return res.status(400).json({ message: error.message });
+    }
+
+    console.error('Failed to append message', error);
+    throw error;
+  }
 }));
 
 module.exports = router;
