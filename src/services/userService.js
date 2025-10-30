@@ -138,6 +138,9 @@ async function createUser(payload) {
   const emailIndexRef = db.ref(`${EMAIL_INDEX_PATH}/${emailKey}`);
   const usernameIndexRef = db.ref(`${USERNAME_INDEX_PATH}/${usernameKey}`);
 
+  let emailReserved = false;
+  let usernameReserved = false;
+
   try {
     const emailReservation = await reserveIndex(emailIndexRef, userId);
 
@@ -147,6 +150,8 @@ async function createUser(payload) {
       throw error;
     }
 
+    emailReserved = true;
+
     const usernameReservation = await reserveIndex(usernameIndexRef, userId);
 
     if (!usernameReservation.committed || usernameReservation.snapshot.val() !== userId) {
@@ -155,12 +160,20 @@ async function createUser(payload) {
       throw error;
     }
 
+    usernameReserved = true;
+
     await createdRef.set(payload);
 
     return userId;
   } catch (error) {
-    await releaseIndex(emailIndexRef);
-    await releaseIndex(usernameIndexRef);
+    if (usernameReserved) {
+      await releaseIndex(usernameIndexRef);
+    }
+
+    if (emailReserved) {
+      await releaseIndex(emailIndexRef);
+    }
+
     throw error;
   }
 }
