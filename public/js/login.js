@@ -1,4 +1,4 @@
-import { apiBase } from './config.js';
+import { authApiBase } from './config.js';
 
 const loginTab = document.getElementById('loginTab');
 const registerTab = document.getElementById('registerTab');
@@ -43,7 +43,7 @@ function clearFeedback() {
 }
 
 async function authenticate(endpoint, payload) {
-  const response = await fetch(`${apiBase}/${endpoint}`, {
+  const response = await fetch(`${authApiBase}/${endpoint}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

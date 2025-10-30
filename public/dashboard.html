@@ -6,8 +6,70 @@
   <title>Zokzz Chat &mdash; Dashboard</title>
   <link rel="stylesheet" href="/styles.css" />
 </head>
-<body class="dashboard">
-  <h1 id="usernameDisplay">Loading…</h1>
+<body class="app-body">
+  <div class="app-shell">
+    <aside class="app-sidebar">
+      <div class="sidebar-header">
+        <h2 class="sidebar-title">Zokzz Chat</h2>
+        <p class="sidebar-user" id="sidebarUser">Loading…</p>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="sidebar-label" for="friendSearchInput">Find friends</label>
+        <input id="friendSearchInput" class="sidebar-input" type="search" placeholder="Search by username or email" autocomplete="off" />
+        <div id="searchResults" class="sidebar-list empty-state">Start typing to search</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-heading">
+          <h3>Friend requests</h3>
+          <span id="incomingCount" class="badge">0</span>
+        </div>
+        <div id="incomingRequests" class="sidebar-list empty-state">No incoming requests</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-heading">
+          <h3>Sent requests</h3>
+        </div>
+        <div id="outgoingRequests" class="sidebar-list empty-state">No pending requests</div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="section-heading">
+          <h3>Friends</h3>
+          <span id="friendsCount" class="badge">0</span>
+        </div>
+        <div id="friendsList" class="sidebar-list empty-state">You have no friends yet</div>
+      </div>
+    </aside>
+
+    <section class="app-main" id="chatPanel">
+      <div id="chatPlaceholder" class="chat-placeholder">
+        <div class="placeholder-inner">
+          <h2>Welcome back!</h2>
+          <p>Select a friend to start chatting.</p>
+        </div>
+      </div>
+
+      <div id="chatWindow" class="chat-window hidden">
+        <header class="chat-header">
+          <div>
+            <h2 id="chatFriendName">Chat</h2>
+            <p id="chatFriendEmail" class="chat-subtitle"></p>
+          </div>
+          <button id="closeChat" type="button" class="ghost-btn">Close</button>
+        </header>
+
+        <div id="chatMessages" class="chat-messages"></div>
+
+        <form id="chatForm" class="chat-form">
+          <textarea id="chatInput" rows="2" placeholder="Type a message…" required></textarea>
+          <button type="submit">Send</button>
+        </form>
+      </div>
+    </section>
+  </div>
 
   <script src="/js/dashboard.js" type="module"></script>
 </body>

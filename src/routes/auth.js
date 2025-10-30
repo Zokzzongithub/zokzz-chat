@@ -1,32 +1,22 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
 
-const FirebaseClient = require('../services/firebaseClient');
+const { getDatabase } = require('../services/firebaseAdmin');
+const userService = require('../services/userService');
 const { hashPassword, verifyPassword } = require('../utils/crypto');
 const requireAuth = require('../middleware/requireAuth');
 
 const router = express.Router();
 
-let firebaseClient;
-
-try {
-  if (process.env.FIREBASE_DATABASE_URL && process.env.FIREBASE_DATABASE_SECRET) {
-    firebaseClient = new FirebaseClient(
-      process.env.FIREBASE_DATABASE_URL,
-      process.env.FIREBASE_DATABASE_SECRET,
-    );
-  }
-} catch (error) {
-  console.error('Failed to initialise Firebase client', error);
-}
-
 function ensureFirebaseConfigured(res) {
-  if (!firebaseClient) {
+  try {
+    getDatabase();
+    return true;
+  } catch (error) {
+    console.error('Authentication service not configured', error);
     res.status(500).json({ message: 'Authentication service not configured.' });
     return false;
   }
-
-  return true;
 }
 
 function createToken(user) {
@@ -87,10 +77,16 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ message: 'Username must be at least 3 characters long.' });
     }
 
-    const existingUser = await firebaseClient.findUserByEmail(email);
+    const existingUser = await userService.findUserByEmail(email);
 
     if (existingUser) {
       return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    const existingUsername = await userService.findUserByUsernameLower(username.toLowerCase());
+
+    if (existingUsername) {
+      return res.status(409).json({ message: 'Username is already taken.' });
     }
 
     const { salt, hash } = hashPassword(password);
@@ -99,13 +95,15 @@ router.post('/register', async (req, res) => {
     const userPayload = {
       email,
       username,
+      usernameLower: username.toLowerCase(),
       salt,
       passwordHash: hash,
       createdAt: timestamp,
       lastLoginAt: null,
+      friends: {},
     };
 
-    const userId = await firebaseClient.createUser(userPayload);
+    const userId = await userService.createUser(userPayload);
 
     const token = createToken({ id: userId, email, username });
 
@@ -131,7 +129,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ message: 'Invalid email or password.' });
     }
 
-    const userRecord = await firebaseClient.findUserByEmail(email);
+    const userRecord = await userService.findUserByEmail(email);
 
     if (!userRecord) {
       return res.status(401).json({ message: 'Invalid credentials.' });
@@ -145,7 +143,7 @@ router.post('/login', async (req, res) => {
 
     const now = new Date().toISOString();
 
-    firebaseClient
+    userService
       .updateUser(userRecord.id, { lastLoginAt: now })
       .catch((error) => console.error('Failed to update lastLoginAt', error));
 
@@ -175,7 +173,7 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 
   try {
-    const user = await firebaseClient.getUserById(req.user.sub);
+    const user = await userService.getUserById(req.user.sub);
 
     if (!user) {
       return res.status(404).json({ message: 'User not found.' });

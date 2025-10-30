@@ -7,13 +7,13 @@ const dotenv = require('dotenv');
 dotenv.config();
 
 const authRouter = require('./routes/auth');
+const socialRouter = require('./routes/social');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-if (!process.env.FIREBASE_DATABASE_URL || !process.env.FIREBASE_DATABASE_SECRET) {
-  // Warn early when backend secrets are missing to avoid leaking credentials in the client.
-  console.warn('Firebase configuration is incomplete. Set FIREBASE_DATABASE_URL and FIREBASE_DATABASE_SECRET in your .env file.');
+if (!process.env.FIREBASE_DATABASE_URL || (!process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 && !process.env.FIREBASE_SERVICE_ACCOUNT_PATH)) {
+  console.warn('Firebase configuration is incomplete. Provide FIREBASE_DATABASE_URL and either FIREBASE_SERVICE_ACCOUNT_BASE64 or FIREBASE_SERVICE_ACCOUNT_PATH.');
 }
 
 app.disable('x-powered-by');
@@ -26,6 +26,7 @@ app.use(express.urlencoded({ extended: false }));
 app.use(express.static(path.join(__dirname, '../public')));
 
 app.use('/api/auth', authRouter);
+app.use('/api', socialRouter);
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', uptime: process.uptime() });
