@@ -6,6 +6,12 @@ if (!token) {
   window.location.replace('/login.html');
 }
 
+const layoutParam = new URLSearchParams(window.location.search).get('layout');
+const supportedLayouts = new Set(['compact', 'wide']);
+if (layoutParam && supportedLayouts.has(layoutParam)) {
+  document.body.dataset.layout = layoutParam;
+}
+
 const sidebarUserEl = document.getElementById('sidebarUser');
 const searchInputEl = document.getElementById('friendSearchInput');
 const searchResultsEl = document.getElementById('searchResults');
