@@ -112,6 +112,14 @@ router.post('/register', async (req, res) => {
       user: { id: userId, email, username },
     });
   } catch (error) {
+    if (error?.code === 'EMAIL_TAKEN') {
+      return res.status(409).json({ message: 'An account with this email already exists.' });
+    }
+
+    if (error?.code === 'USERNAME_TAKEN') {
+      return res.status(409).json({ message: 'Username is already taken.' });
+    }
+
     console.error('Registration failed', error);
     return res.status(500).json({ message: 'Unable to register at this time.' });
   }

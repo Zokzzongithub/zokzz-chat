@@ -1,9 +1,19 @@
 const { getDatabase } = require('./firebaseAdmin');
 
 const USERS_COLLECTION = 'users';
+const EMAIL_INDEX_PATH = 'indexes/email';
+const USERNAME_INDEX_PATH = 'indexes/username';
 
 function usersRef() {
   return getDatabase().ref(USERS_COLLECTION);
+}
+
+function normaliseKey(value) {
+  if (typeof value !== 'string') {
+    return '';
+  }
+
+  return value.trim().toLowerCase().replace(/[.#$/\[\]]/g, '_');
 }
 
 function normaliseUserRecord(id, payload) {
@@ -24,42 +34,135 @@ function normaliseUserRecord(id, payload) {
   };
 }
 
-async function findUserByEmail(email) {
-  const snapshot = await usersRef()
-    .orderByChild('email')
-    .equalTo(email)
-    .limitToFirst(1)
-    .once('value');
+async function reserveIndex(ref, userId) {
+  const result = await ref.transaction((current) => {
+    if (current === null) {
+      return userId;
+    }
+    return current;
+  });
 
-  const value = snapshot.val();
-  if (!value) {
+  return result;
+}
+
+async function releaseIndex(ref) {
+  try {
+    await ref.remove();
+  } catch (error) {
+    console.warn('Failed to release index', ref.toString(), error);
+  }
+}
+
+async function backfillIndex(path, key, userId) {
+  if (!key || !userId) {
+    return;
+  }
+
+  try {
+    await getDatabase().ref(`${path}/${key}`).set(userId);
+  } catch (error) {
+    console.warn('Failed to backfill index', path, key, error);
+  }
+}
+
+async function findUserByEmail(email) {
+  const db = getDatabase();
+  const key = normaliseKey(email);
+  if (!key) {
     return null;
   }
 
-  const [userId, userData] = Object.entries(value)[0];
-  return normaliseUserRecord(userId, userData);
+  const indexSnapshot = await db.ref(`${EMAIL_INDEX_PATH}/${key}`).once('value');
+  const userId = indexSnapshot.val();
+
+  if (!userId) {
+    const fallback = await usersRef()
+      .orderByChild('email')
+      .equalTo(email)
+      .limitToFirst(1)
+      .once('value');
+
+    const value = fallback.val();
+    if (!value) {
+      return null;
+    }
+
+    const [legacyId, legacyData] = Object.entries(value)[0];
+    await backfillIndex(EMAIL_INDEX_PATH, key, legacyId);
+    return normaliseUserRecord(legacyId, legacyData);
+  }
+
+  const userSnapshot = await usersRef().child(userId).once('value');
+  return normaliseUserRecord(userId, userSnapshot.val());
 }
 
 async function findUserByUsernameLower(usernameLower) {
-  const snapshot = await usersRef()
-    .orderByChild('usernameLower')
-    .equalTo(usernameLower)
-    .limitToFirst(1)
-    .once('value');
-
-  const value = snapshot.val();
-  if (!value) {
+  const db = getDatabase();
+  const key = normaliseKey(usernameLower);
+  if (!key) {
     return null;
   }
 
-  const [userId, userData] = Object.entries(value)[0];
-  return normaliseUserRecord(userId, userData);
+  const indexSnapshot = await db.ref(`${USERNAME_INDEX_PATH}/${key}`).once('value');
+  const userId = indexSnapshot.val();
+
+  if (!userId) {
+    const fallback = await usersRef()
+      .orderByChild('usernameLower')
+      .equalTo(usernameLower)
+      .limitToFirst(1)
+      .once('value');
+
+    const value = fallback.val();
+    if (!value) {
+      return null;
+    }
+
+    const [legacyId, legacyData] = Object.entries(value)[0];
+    await backfillIndex(USERNAME_INDEX_PATH, key, legacyId);
+    return normaliseUserRecord(legacyId, legacyData);
+  }
+
+  const userSnapshot = await usersRef().child(userId).once('value');
+  return normaliseUserRecord(userId, userSnapshot.val());
 }
 
 async function createUser(payload) {
+  const db = getDatabase();
   const createdRef = usersRef().push();
-  await createdRef.set(payload);
-  return createdRef.key;
+  const userId = createdRef.key;
+
+  const emailKey = normaliseKey(payload.email);
+  const usernameKey = normaliseKey(payload.usernameLower);
+
+  const emailIndexRef = db.ref(`${EMAIL_INDEX_PATH}/${emailKey}`);
+  const usernameIndexRef = db.ref(`${USERNAME_INDEX_PATH}/${usernameKey}`);
+
+  try {
+    const emailReservation = await reserveIndex(emailIndexRef, userId);
+
+    if (!emailReservation.committed || emailReservation.snapshot.val() !== userId) {
+      const error = new Error('Email already in use');
+      error.code = 'EMAIL_TAKEN';
+      throw error;
+    }
+
+    const usernameReservation = await reserveIndex(usernameIndexRef, userId);
+
+    if (!usernameReservation.committed || usernameReservation.snapshot.val() !== userId) {
+      const error = new Error('Username already in use');
+      error.code = 'USERNAME_TAKEN';
+      throw error;
+    }
+
+    await createdRef.set(payload);
+
+    return userId;
+  } catch (error) {
+    await releaseIndex(emailIndexRef);
+    await releaseIndex(usernameIndexRef);
+    throw error;
+  }
 }
 
 async function updateUser(userId, updates) {
