@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zokzz Chat &mdash; Login</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <div class="logo">Zokzz Chat</div>
+    <div class="nav-actions">
+      <a href="/index.html">Back Home</a>
+    </div>
+  </header>
+
+  <main>
+    <div class="auth-container">
+      <h1>Access your account</h1>
+
+      <div class="auth-toggle">
+        <button id="loginTab" class="active" type="button">Log In</button>
+        <button id="registerTab" type="button">Register</button>
+      </div>
+
+      <form id="loginForm" autocomplete="on">
+        <label for="loginEmail">Email</label>
+        <input type="email" id="loginEmail" name="email" placeholder="you@example.com" required />
+
+        <label for="loginPassword">Password</label>
+        <input type="password" id="loginPassword" name="password" placeholder="Your password" required />
+
+        <button type="submit">Log In</button>
+      </form>
+
+      <form id="registerForm" class="hidden" autocomplete="on">
+        <label for="registerUsername">Username</label>
+        <input type="text" id="registerUsername" name="username" placeholder="Pick a username" required />
+
+        <label for="registerEmail">Email</label>
+        <input type="email" id="registerEmail" name="email" placeholder="you@example.com" required />
+
+        <label for="registerPassword">Password</label>
+        <input type="password" id="registerPassword" name="password" placeholder="Use at least 10 characters" required />
+
+        <button type="submit">Create Account</button>
+      </form>
+
+      <div class="feedback" id="authFeedback"></div>
+    </div>
+  </main>
+
+  <script src="/js/login.js" type="module"></script>
+</body>
+</html>
