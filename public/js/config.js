@@ -1,5 +1,5 @@
 const LOCAL_API_BASE = '/api/auth';
-const REMOTE_API_BASE = 'https://your-render-service.onrender.com/api/auth';
+const REMOTE_API_BASE = "https://zokzz-chat.onrender.com/api/auth";
 
 const isLocalhost = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
